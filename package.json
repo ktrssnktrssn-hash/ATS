@@ -1,0 +1,13 @@
+{
+  "name": "ats-portal",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "jsdom": "30.0.1"
+  }
+}

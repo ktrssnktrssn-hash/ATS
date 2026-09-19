@@ -132,6 +132,7 @@ async function doLogin() {
   const password = document.getElementById("l-pass").value;
   const btn      = document.getElementById("l-btn");
   const errEl    = document.getElementById("lerr");
+  if (btn.disabled) return;
 
   // 入力チェック
   if (!email || !password) {
@@ -169,3 +170,4 @@ async function doLogin() {
 </script>
 </body>
 </html>
+
