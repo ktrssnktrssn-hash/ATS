@@ -50,3 +50,7 @@ Supabase AuthのSite URL・許可redirect URLを実際の公開先へ合わせ�
 管理者作成後、実ログイン→候補者追加→選考変更→書類upload/download→担当面接官の閲覧範囲→テストメールの順に確認してから運用開始する。元の画面の全機能を完成させたわけではなく、写真の永続化などは別途実装が必要。
 
 参考: [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security)、[Storageアクセス制御](https://supabase.com/docs/guides/storage/security/access-control)、[Edge Function Secrets](https://supabase.com/docs/guides/functions/secrets)、[Resend](https://resend.com/docs/introduction)
+
+## 2026-09-29 更新
+
+最初の管理者プロフィール登録済み。最新の公開前確認結果は `docs/SECURITY_REVIEW.md` を参照。テストは16件成功。Security Advisorsは漏洩済みパスワード保護の無効を1件報告しており、上記の以前の「指摘0件」は最新状態ではない。公開時は同レビューのHTTPヘッダーと実ブラウザ確認を実施する。インラインJS変更後は `node scripts/update-csp.cjs` でCSPハッシュを更新する。

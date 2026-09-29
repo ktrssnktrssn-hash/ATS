@@ -46,3 +46,23 @@ test('upload returns a file object with tenant-isolated path',async()=>{
 test('all embedded page scripts parse',()=>{
  for(const file of ['index.html','list.html','detail.html']){const html=fs.readFileSync(path.join(root,file),'utf8');for(const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))new vm.Script(m[1],{filename:file});}
 });
+test('forged local token and admin profile do not pass server validation',async()=>{
+ const ctx=context(async()=>new Response('{"error":"invalid JWT"}',{status:401}));
+ run(ctx,'localStorage.setItem(SESSION_KEYS.token,"forged");localStorage.setItem(SESSION_KEYS.user,JSON.stringify({id:"fake",role:"admin",is_active:true}))');
+ await assert.rejects(run(ctx,'atsApi.validateSession()'),/ログインし直/);assert.equal(run(ctx,'getToken()'),'');
+});
+test('server profile replaces tampered local admin role',async()=>{
+ const interviewer={...user,role:'interviewer'};
+ const ctx=context(async url=>url.includes('/auth/')?ok(user):ok([interviewer]));
+ run(ctx,'localStorage.setItem(SESSION_KEYS.token,"valid");localStorage.setItem(SESSION_KEYS.user,JSON.stringify({role:"admin"}))');
+ await run(ctx,'atsApi.validateSession()');assert.equal(run(ctx,'getCurrentUser().role'),'interviewer');
+});
+test('CSP hashes match inline scripts and forbid unapproved script, form and network destinations',()=>{
+ const {createHash}=require('node:crypto');
+ for(const file of ['index.html','list.html','detail.html']){
+  const html=fs.readFileSync(path.join(root,file),'utf8');const policy=html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+  for(const m of html.matchAll(/<script>([\s\S]*?)<\/script>/g))assert.ok(policy.includes("'sha256-"+createHash('sha256').update(m[1]).digest('base64')+"'"));
+  assert.match(policy,/form-action 'none'/);assert.match(policy,/base-uri 'none'/);assert.match(policy,/script-src-attr 'none'/);
+  const scripts=policy.split(';').find(x=>x.trim().startsWith('script-src '));assert.ok(!scripts.includes('unsafe-inline')&&!scripts.includes('unsafe-eval'));
+ }
+});

@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-gRquMcwLSkkeHKQ0/d71i/DP825L4SqDMnsOSNJ2G0U='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://edxfhpdyxlenkrxsnirb.supabase.co; base-uri 'none'; object-src 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ATS Portal - 候補者詳細</title>
 <style>
@@ -983,7 +985,7 @@ function renderDocs(files) {
     btn.addEventListener("click", async () => {
       btn.textContent = "...";
       const url = await atsApi.getFileUrl(btn.dataset.path);
-      if (url) { window.open(url, "_blank"); }
+      if (url) { window.open(url, "_blank", "noopener,noreferrer"); }
       else showToast("ダウンロードURLの取得に失敗しました");
       btn.textContent = "DL";
     });
