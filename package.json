@@ -2,7 +2,9 @@
   "name": "ats-portal",
   "private": true,
   "scripts": {
-    "test": "node --test tests/*.test.cjs"
+    "test": "node --test tests/*.test.cjs",
+    "start": "node server/app.cjs",
+    "security:headers": "node scripts/update-csp.cjs"
   },
   "engines": {
     "node": ">=22.13"

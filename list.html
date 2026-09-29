@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-83z/huhqLOlXqibKa4i+yMoXdjhn7R+EZU0ghJTJQV0='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://edxfhpdyxlenkrxsnirb.supabase.co; base-uri 'none'; object-src 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-YZgETAu/ABaQrpZIMvy2yeNYqgzgehn8Y0HMV11IZtw='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ATS Portal - 応募者一覧</title>
@@ -382,7 +382,7 @@ const CSV_FORMATS = [
 ];
 
 // ===== 認証 =====
-requireAuth();
+
 const _user = getCurrentUser();
 if (_user) document.getElementById("nav-user").textContent = _user.name || _user.email || "";
 document.getElementById("logout-btn").addEventListener("click", async () => {
@@ -413,6 +413,7 @@ let TAGS_MAP    = {};  // applicant_id → [{id,name,color}]
 async function init() {
   try {
     const activeUser=await atsApi.validateSession();
+    document.getElementById('nav-user').textContent=activeUser.name||activeUser.email||'';
     document.body.classList.toggle('ats-interviewer',activeUser.role==='interviewer');
     const [applicants, templates, jobs, allTags, appTagsAll] = await Promise.all([
       atsApi.getApplicants(),

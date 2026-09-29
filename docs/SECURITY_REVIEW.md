@@ -29,3 +29,19 @@ HTMLの認証チェックを消したりlocalStorageのroleをadminへ書き換�
 3. 公開先でHTTPSとHTTPレスポンスヘッダー `Content-Security-Policy: frame-ancestors 'none'`、`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY` を設定する。frame-ancestorsはmetaタグでは効かない。HTML/JSと必要静的ファイルだけを公開し、SQL・テスト・設定手順は配信しない。
 4. 公開後、実ブラウザで正常ログイン・ログアウト・権限拒否・CSP・書類取得を確認する。まだ公開していない。
 5. トークンはlocalStorage保存でHttpOnly cookieではない。XSS発生時のセッション窃取リスクは残るため、本番で実個人情報を扱う前にHttpOnly cookieを使うサーバー構成への移行と追加レビューを検討する。今回のCSPはこれを完全解消しない。
+
+## 同日追加対応 — サーバー側セッションへ移行
+
+上記レビュー後に `server/app.cjs` を追加。**localStorageへのトークン保存は廃止**し、旧キーを削除。Supabaseトークンはサーバーメモリ内のみ、ブラウザには32バイト乱数IDの `__Host-ats_session` Cookie（HttpOnly / Secure / SameSite=Strict / Path=/）。正常ログインでIDを新規発行し、サーバー内の期限は無操作30分・最大8時間。
+
+APIに固定origin検査とX-ATS-Requestヘッダーを要求し、CORS非公開。サーバーで毎回Auth userと有効プロフィールを照合。クライアントのAuthorizationやCookieを上流へ転送せず、当該セッションのユーザートークンを使う。ログアウト後の同じIDはサーバーで即拒否。Supabase logoutが通信失敗してもアプリセッションは削除するが、既に外部へ漏れたSupabase JWTや既発行の書類署名URLの即時失効は保証しない。プロフィール無効化は次のAPI要求から拒否する。
+
+セキュリティHTTPヘッダーと静的ファイル許可リストをNodeへ実装。SQL、設定手順、サーバーソース、テスト、package.jsonは404。公開後にもリバースプロキシがヘッダーを維持し、キャッシュしないことを確認する。
+
+検証: 21件成功。Nodeに実HTTPでリクエストし、Cookie属性/トークン非返却、偽Cookie、CSRF、失効、プロフィール無効化、共有refresh、ログイン試行制限、非公開ファイル配信拒否を確認（上流Auth/APIはモック）。jsdomで一覧/候補者作成/詳細保存が動作。実ブラウザでlocalhostを開く試験は `ERR_BLOCKED_BY_CLIENT` により未実施。実際の本人ログインと公開HTTPSでのCookie/CSP確認は未完了。
+
+Supabase settingsの読取で一般signup有効を確認。招待制へ変更する管理画面はクラウドブラウザでサインインが必要なため未変更。漏洩済みパスワード保護はPro以上の機能と公式資料で確認。料金プラン変更なし。
+
+HttpOnlyはトークンのJSからの読取を防ぎますが、XSSが成立した場合にそのブラウザで本人権限の操作を行うことまでは防げません。DOMPurify・CSP・サーバー認可は引き続き必要です。メモリ内セッションと制限は単一Nodeプロセス向けで、本番の複数台構成には共有ストア等が必要です。
+
+参考: https://supabase.com/docs/guides/auth/server-side/advanced-guide 、https://supabase.com/docs/guides/auth/sessions 、https://supabase.com/docs/guides/auth/password-security

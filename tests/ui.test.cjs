@@ -9,9 +9,9 @@ async function load(file,role='admin'){
  const candidate={id:'candidate-a',name:'<img src=x onerror="window.compromised=true">青山',job_id:'job-a',step:'書類選考',status:'未対応',applied_at:'2026-09-01',memo:'',stars:0};
  const tables={profiles:[profile],applicants:[candidate],jobs:[{id:'job-a',title:'Engineer'}],tags:[],applicant_tags:[],mail_templates:[{id:'template-a',name:'Interview',subject:'Interview',body:'Hello'}],evaluations:[],step_histories:[],timeline_entries:[],files:[],mail_logs:[]};
  w.fetch=async(url,options={})=>{
-  if(url.includes('/auth/v1/user'))return new Response(JSON.stringify({id:'user-a'}));
+  if(url==='/api/auth/session')return new Response(JSON.stringify({user:profile}));
   if(url.includes('/functions/'))return new Response('{"error":"メール送信設定が未完了です"}',{status:503});
-  const table=new URL(url).pathname.split('/').pop();if(options.method==='PATCH'){const data=JSON.parse(options.body);Object.assign(tables[table][0],data);return new Response(JSON.stringify([tables[table][0]]));}
+  const table=new URL(url,'https://ats.example').pathname.split('/').pop();if(options.method==='PATCH'){const data=JSON.parse(options.body);Object.assign(tables[table][0],data);return new Response(JSON.stringify([tables[table][0]]));}
   if(options.method==='POST'){const data={...JSON.parse(options.body),id:'new-id'};tables[table].push(data);return new Response(JSON.stringify([data]));}
   return new Response(JSON.stringify(tables[table]||[]));
  };
