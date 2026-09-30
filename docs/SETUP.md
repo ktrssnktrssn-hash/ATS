@@ -32,11 +32,12 @@ Node 22.13以上。起動前に環境変数を設定（値をGitへ保存しな�
 
 ## 管理画面で残っている設定
 
-2026-09-29の公開Auth settings読取: `disable_signup=false`、メール確認あり、匿名ログイン無効、email providerのみ有効。
+2026-09-30 管理画面で保存・再表示確認: 一般signup無効、メール確認あり、匿名ログイン無効、email providerのみ有効。
 
-- Authentication → Sign In / Providers → Allow new users to sign up を無効にする（招待制）。プラグインに設定変更機能がなく、クラウドブラウザはサインイン待ちのため未変更。
+- 一般ユーザーの新規登録を無効化済み。管理者によるユーザー作成・招待とATSプロフィール付与で利用開始。
+- Secure password change と Require current password when updating を有効化、Minimum password length を12文字へ設定済み。既存パスワードそのものの変更は行っていません。
 - 漏洩済みパスワード保護は無効（Advisor警告1件）。公式資料ではPro以上。課金変更は行っていません。利用プランで可能なら有効化。
-- パスワード最低長・文字条件、MFA、Authレート制限を管理画面で確認する。アプリのログイン制限はメール単位5回/15分、全体100回/分。Supabase直アクセスにはこのアプリ制限は適用されないためAuth側の保護も必要。
+- パスワード文字条件、MFA、Authレート制限を管理画面で確認する。アプリのログイン制限はメール単位5回/15分、全体100回/分。Supabase直アクセスにはこのアプリ制限は適用されないためAuth側の保護も必要。
 - 公開origin決定後にAuth Site URL/redirect許可先を必要なものだけへ合わせる。
 
 ## メール
