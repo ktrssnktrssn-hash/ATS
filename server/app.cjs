@@ -65,6 +65,11 @@ function createApp({origin,supabaseUrl,publishableKey,fetchImpl=fetch,now=Date.n
   if(site.protocol==='https:')res.setHeader('Strict-Transport-Security','max-age=31536000');
   let sid='';
   try{
+   // Platform probes can use an internal Host. This endpoint returns no app/user data.
+   if(req.url==='/healthz'&&['GET','HEAD'].includes(req.method)){
+    res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'});
+    return res.end(req.method==='HEAD'?undefined:'{"ok":true}');
+   }
    if(req.headers.host!==site.host)throw new HttpError(400,'Invalid host');
    if(!req.url.startsWith('/')||req.url.startsWith('//'))throw new HttpError(400,'Invalid URL');
    const url=new URL(req.url,origin);sid=getSid(req);cleanup();
@@ -115,7 +120,16 @@ function createApp({origin,supabaseUrl,publishableKey,fetchImpl=fetch,now=Date.n
 }
 module.exports={createApp};
 if(require.main===module){
- const server=createApp({origin:process.env.ATS_ORIGIN,supabaseUrl:process.env.SUPABASE_URL,publishableKey:process.env.SUPABASE_PUBLISHABLE_KEY});
+ const config=require('./config.cjs').readConfig(process.env);
+ const server=createApp(config);
  server.requestTimeout=30000;server.headersTimeout=15000;
- server.listen(Number(process.env.PORT||3000),process.env.HOST||'127.0.0.1',()=>console.log('ATS server ready'));
+ server.on('error',()=>{console.error('ATS server failed to start');process.exitCode=1;});
+ server.listen(config.port,config.host,()=>console.log('ATS server ready'));
+ let stopping=false;
+ function stop(){
+  if(stopping)return;stopping=true;
+  server.close(()=>process.exit(0));
+  setTimeout(()=>{server.closeAllConnections();process.exit(0);},10000).unref();
+ }
+ process.on('SIGTERM',stop);process.on('SIGINT',stop);
 }

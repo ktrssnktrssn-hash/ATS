@@ -2,6 +2,8 @@
 
 対象: PR #1 の静的HTML/JavaScript、接続先 edxfhpdyxlenkrxsnirb の実DB権限。認証迂回がないことの絶対保証や第三者による侵入試験ではありません。
 
+以下は時点ごとの記録です。最新状態は末尾の2026-09-30追記を参照してください。
+
 ## 結果
 
 HTMLの認証チェックを消したりlocalStorageのroleをadminへ書き換えるだけで、候補者データにアクセスできる経路は今回の範囲では確認されませんでした。UIの表示自体は利用者が変更できますが、権限はSupabaseの署名済みトークンとDBの有効プロフィールで決まります。HTMLに管理者パスワード・service_role/secret keyはありません。publishable keyは公開を前提としたキーです。
@@ -45,3 +47,11 @@ Supabase settingsの読取で一般signup有効を確認。招待制へ変更す
 HttpOnlyはトークンのJSからの読取を防ぎますが、XSSが成立した場合にそのブラウザで本人権限の操作を行うことまでは防げません。DOMPurify・CSP・サーバー認可は引き続き必要です。メモリ内セッションと制限は単一Nodeプロセス向けで、本番の複数台構成には共有ストア等が必要です。
 
 参考: https://supabase.com/docs/guides/auth/server-side/advanced-guide 、https://supabase.com/docs/guides/auth/sessions 、https://supabase.com/docs/guides/auth/password-security
+
+## 2026-09-30 — Auth設定とデプロイ準備
+
+Supabase管理画面で一般signup無効、Secure password change有効、Require current password when updating有効、最低長12を保存して再表示確認。メール確認有効・匿名ログイン無効は維持。漏洩済みパスワード保護はPro以上のため無効のまま。既存パスワード変更なし。前節の「signup未変更」は以前の状態です。
+
+Render Free単一プロセス向けの配置設定と非root Dockerfileを追加。productionではHTTPS originを要求し、Renderでは環境変数の既定URLを検証して使用。アプリ/APIのHost検査は維持。内部HostのGET/HEAD `/healthz` だけは情報を含まないプロセス応答確認を許可し、Supabaseへの問い合わせやセッション発行を行いません。
+
+25件の自動テスト成功（従来21件に環境設定3件・ヘルスチェック1件を追加）。プラットフォームURL、productionのHTTP拒否、未設定/不正PORTの起動拒否、内部Host例外が認証APIへ広がらないことを確認。公開後の匿名アクセスとHTTPヘッダー検査用スクリプトを追加。ただし公開URL未作成のため同スクリプトの実環境実行、実本人ログイン、Dockerビルド、公開ブラウザのCookie/CSP確認は未実施。メール配送・写真永続化・パスワード再設定/MFA導線も未完了。

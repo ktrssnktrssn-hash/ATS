@@ -57,3 +57,13 @@ test('parallel calls share one refresh, while tokens remain only on server',asyn
 test('login attempt limit and inactive account fail closed',async()=>{
  const f=await fixture();try{f.setActive(false);assert.equal((await f.login()).r.status,403);f.setActive(true);for(let i=0;i<4;i++)await f.login();assert.equal((await f.login()).r.status,429);}finally{await f.close();}
 });
+test('platform health probe reveals only readiness and never reaches Supabase',async()=>{
+ const f=await fixture();try{
+ const r=await f.req('/healthz',{headers:{Host:'internal:10000','X-ATS-Request':'',Origin:''}});
+ assert.equal(r.status,200);assert.deepEqual(await r.json(),{ok:true});assert.equal(f.requests.length,0);
+ assert.equal(r.headers.get('set-cookie'),null);assert.match(r.headers.get('cache-control'),/no-store/);
+ assert.equal((await f.req('/healthz',{method:'HEAD',headers:{Host:'internal:10000'}})).status,200);
+ assert.equal((await f.req('/api/auth/session',{headers:{Host:'internal:10000'}})).status,400);
+ assert.equal((await f.req('/healthz',{method:'POST',headers:{Host:'internal:10000'}})).status,400);
+ }finally{await f.close();}
+});

@@ -1,4 +1,4 @@
-# ATS setup — 2026-09-29
+# ATS setup — 2026-09-30
 
 ## 現在の構成
 
@@ -23,6 +23,24 @@ Node 22.13以上。起動前に環境変数を設定（値をGitへ保存しな�
 `npm start` で起動。開発のみ `ATS_ORIGIN=http://127.0.0.1:3000` を使用可能。開発CookieはHTTP用、本番Cookieは `__Host-` prefixとSecure付き。外部公開時はHTTPS終端の後ろに置き、HTTP→HTTPSリダイレクト、外部HostをそのままNodeへ転送、API/認証応答のCDNキャッシュ無効、Nodeの直接外部アクセスを遮断する。信頼できない `X-Forwarded-*` を認証やIP判定に使用しません。
 
 配信は3つのHTML・api.js・DOMPurifyのみの許可リスト。リポジトリ全体を別の静的サーバーで公開しないでください。CSP/frame-ancestors、nosniff、DENY、no-referrer、no-store、HTTPS時HSTSはNodeから返却します。
+
+## デモの配置準備（まだ未公開）
+
+`render.yaml` にRender Free Web Serviceの配置設定を用意。単一Nodeプロセス、Singapore、手動デプロイ、ビルド時に `npm ci --include=dev && npm test`。既存のSupabaseを使い、新しいDBや有料サービスを作る設定はありません。設定ファイルの保存だけではサービスは作成されません。
+
+1. RenderにGitHubでログインし、ATSリポジトリへの接続を許可する。
+2. New → Blueprintで `ktrssnktrssn-hash/ATS` の `codex/switch-connected-supabase` ブランチを選ぶ。mainにはまだこの変更がありません。
+3. `SUPABASE_PUBLISHABLE_KEY` に接続済みプロジェクトのpublishable keyを入力。Free・1 instance・手動デプロイであることを確認して作成する。この操作でインターネットから到達可能なログイン画面ができます。候補者APIには引き続き認証とRLSが必要です。
+4. Renderが提供する `RENDER_EXTERNAL_URL` を固定originとして起動。リクエストのHost/転送ヘッダーからoriginを自動決定しません。独自ドメインを使う場合のみ `ATS_ORIGIN` をそのHTTPS originへ明示設定し、そこでアクセスする。
+5. デプロイ完了後、`node scripts/check-deployment.cjs https://実際のホスト名` を実行。HTTPSヘッダー、匿名API拒否、非公開ソース404を検査。続いて実ブラウザで下記の公開ゲートを確認する。
+
+Freeサービスは15分無通信で休止し、復帰に約1分かかる場合があります。休止/再起動/再デプロイでメモリ内セッションが失われるため再ログインが必要。保存済み候補者・書類はSupabaseに残ります。Freeにも利用上限があり、支払方法登録済みのアカウントは帯域/ビルドの超過請求に注意。アカウント側の上限と料金を作成画面で確認してください。
+
+`/healthz` はNodeの応答確認のみで `{ "ok": true }` を返します。Supabase接続や認証の正常性を示すものではありません。プラットフォーム内部Hostを許可する例外はこのGET/HEADだけで、ページ/APIのHost検査は維持します。終了シグナル時は最大10秒で停止します。
+
+別のNodeホスト向けに `Dockerfile` も用意。Node 24、非root実行、サーバーと公開アセットだけをコピー、npm本番依存なし。`docker build -t ats-demo .`。実行時に上記3つの接続環境変数を渡し、HTTPSリバースプロキシの背後で単一コンテナとして実行してください。Dockerイメージのビルドとホスト側TLSはこの作業環境では未検証です。
+
+公式参考: https://render.com/docs/blueprint-spec 、https://render.com/docs/environment-variables 、https://render.com/docs/free
 
 ## Supabase反映済み
 
