@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-YZgETAu/ABaQrpZIMvy2yeNYqgzgehn8Y0HMV11IZtw='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ATS Portal - 応募者一覧</title>
 <style>
@@ -148,6 +150,12 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pu
 .drow{font-size:11px;color:var(--text3);}
 .empty{text-align:center;padding:2rem;color:var(--text3);font-size:13px;}
 .loading{text-align:center;padding:2rem;color:var(--text3);font-size:13px;}
+
+.ats-interviewer #new-btn,.ats-interviewer #bbulk-btn,.ats-interviewer #bmail-btn,
+.ats-interviewer #d-mail-btn,.ats-interviewer #d-step-btn,.ats-interviewer #d-save-btn,
+.ats-interviewer #info-edit-btn,.ats-interviewer #memo-save,.ats-interviewer #tag-add-btn,
+.ats-interviewer .tag-x,.ats-interviewer .asrow,.ats-interviewer .asect,
+.ats-interviewer .upload-area,.ats-interviewer .ddel{display:none!important;}
 </style>
 </head>
 <body>
@@ -355,6 +363,7 @@ input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--pu
 
 <div class="toast" id="toast"></div>
 
+<script src="lib/vendor/purify.min.js"></script>
 <script src="lib/api.js"></script>
 <script>
 // ===== 定数 =====
@@ -373,7 +382,7 @@ const CSV_FORMATS = [
 ];
 
 // ===== 認証 =====
-requireAuth();
+
 const _user = getCurrentUser();
 if (_user) document.getElementById("nav-user").textContent = _user.name || _user.email || "";
 document.getElementById("logout-btn").addEventListener("click", async () => {
@@ -403,6 +412,9 @@ let TAGS_MAP    = {};  // applicant_id → [{id,name,color}]
 // ===== 初期化 =====
 async function init() {
   try {
+    const activeUser=await atsApi.validateSession();
+    document.getElementById('nav-user').textContent=activeUser.name||activeUser.email||'';
+    document.body.classList.toggle('ats-interviewer',activeUser.role==='interviewer');
     const [applicants, templates, jobs, allTags, appTagsAll] = await Promise.all([
       atsApi.getApplicants(),
       atsApi.getMailTemplates(),
@@ -444,7 +456,7 @@ async function init() {
     renderTable();
   } catch(e) {
     console.error(e);
-    G("tbody").innerHTML = `<tr><td colspan="9" class="empty">データの読み込みに失敗しました。再読み込みしてください。</td></tr>`;
+    G("tbody").innerHTML = sanitizeRows(`<tr><td colspan="9" class="empty">データの読み込みに失敗しました。再読み込みしてください。</td></tr>`);
   }
 }
 
@@ -454,9 +466,9 @@ function populateFilters() {
 }
 
 function renderTagPills() {
-  G("tpills").innerHTML = ALL_TAGS.map(t =>
+  G("tpills").innerHTML = DOMPurify.sanitize(ALL_TAGS.map(t =>
     `<span class="tpill${activeTags.has(t)?" active":""}" data-tag="${t}">${t}</span>`
-  ).join("");
+  ).join(""));
   G("tpills").querySelectorAll(".tpill").forEach(el => {
     el.addEventListener("click", () => {
       activeTags.has(el.dataset.tag) ? activeTags.delete(el.dataset.tag) : activeTags.add(el.dataset.tag);
@@ -470,11 +482,11 @@ function renderMetrics() {
   const a = ALL_DATA.filter(d => !["不合格","辞退"].includes(d.status)).length;
   const i = ALL_DATA.filter(d => d.step && d.step.includes("面接")).length;
   const p = ALL_DATA.filter(d => d.status === "通過").length;
-  G("metrics").innerHTML = `
+  G("metrics").innerHTML = DOMPurify.sanitize(`
     <div class="metric"><div class="mlabel">総応募数</div><div class="mval">${t}</div><div class="msub">累計</div></div>
     <div class="metric"><div class="mlabel">選考中</div><div class="mval">${a}</div><div class="msub">アクティブ</div></div>
     <div class="metric"><div class="mlabel">面接中</div><div class="mval">${i}</div><div class="msub">今週</div></div>
-    <div class="metric"><div class="mlabel">通過者</div><div class="mval">${p}</div><div class="msub">累計</div></div>`;
+    <div class="metric"><div class="mlabel">通過者</div><div class="mval">${p}</div><div class="msub">累計</div></div>`);
 }
 
 // ===== 新規応募者登録 =====
@@ -555,7 +567,6 @@ G("new-submit").addEventListener("click", async () => {
     const result = await atsApi.createApplicant(payload);
     if (Array.isArray(result) && result[0]) {
       // 選考履歴に「応募受付」を記録
-      await atsApi.addStepHistory(result[0].id, "書類選考", "未対応", "応募受付");
       showToast(`${name} さんを登録しました（${result[0].id}）`);
       closeMod("mod-new");
       // 一覧を再取得して更新
@@ -651,12 +662,17 @@ function updateBulkBar() {
   G("bulk-cnt").textContent = selected.size + "件選択中";
   G("bulk-bar").className = "bulk-bar" + (selected.size > 0 ? " active" : "");
 }
+function sanitizeRows(html) {
+  const container=document.createElement('div');
+  container.innerHTML=DOMPurify.sanitize('<table><tbody>'+html+'</tbody></table>');
+  return container.querySelector('tbody')?.innerHTML||'';
+}
 function renderTable() {
   G("rinfo").textContent = dispData.length===ALL_DATA.length ? `全${ALL_DATA.length}件` : `${dispData.length} / ${ALL_DATA.length}件`;
   const tbody = G("tbody");
-  if (!dispData.length) { tbody.innerHTML=`<tr><td colspan="9" class="empty">該当する応募者が見つかりません</td></tr>`; return; }
+  if (!dispData.length) { tbody.innerHTML=sanitizeRows(`<tr><td colspan="9" class="empty">該当する応募者が見つかりません</td></tr>`); return; }
 
-  tbody.innerHTML = dispData.map(d => {
+  tbody.innerHTML = sanitizeRows(dispData.map(d => {
     // 求人名はJOBS_LISTから引く
     const jobObj   = JOBS_LIST.find(j => j.id === d.job_id);
     const jobTitle = jobObj ? jobObj.title : (d.job_title || "―");
@@ -673,12 +689,12 @@ function renderTable() {
       <td>${renderTagCell(d.id)}</td>
       <td><div style="display:flex;flex-direction:column;gap:1px"><div>${stars}</div><div class="drow">${appliedAt}</div></div></td>
     </tr>`;
-  }).join("");
+  }).join(""));
 
   tbody.querySelectorAll("tr[data-id]").forEach(tr => {
     tr.addEventListener("click", e => {
       if (e.target.type==="checkbox") return;
-      window.open(`detail.html?id=${tr.dataset.id}`, "_blank");
+      window.open(`detail.html?id=${encodeURIComponent(tr.dataset.id)}`, "_blank", "noopener,noreferrer");
     });
   });
   tbody.querySelectorAll(".rchk").forEach(cb => {
@@ -725,7 +741,15 @@ document.querySelectorAll(".overlay").forEach(ov =>
 G("bulk-mok").addEventListener("click", async () => {
   if (bulkTab==="tag-add"||bulkTab==="tag-remove") {
     if (!selTagsOp.size) { showToast("タグを選択してください"); return; }
-    showToast(`${selected.size}件のタグを${bulkTab==="tag-add"?"付与":"削除"}しました（DB連携は次フェーズ）`);
+    for(const id of selected){
+      for(const name of selTagsOp){const tag=ALL_TAGS_DB.find(t=>t.name===name);if(!tag)continue;
+       const has=(TAGS_MAP[id]||[]).some(t=>t.id===tag.id);
+       if(bulkTab==='tag-add'&&!has)await atsApi.addTag(id,tag.id);
+       if(bulkTab==='tag-remove'&&has)await atsApi.removeTag(id,tag.id);
+      }
+    }
+    const links=await atsApi.getAllApplicantTags();TAGS_MAP={};links.forEach(t=>{(TAGS_MAP[t.applicant_id]||=[]).push(t.tags);});
+    showToast('タグを更新しました');
   } else {
     if (!selBulkVal) { showToast("変更先を選択してください"); return; }
     const field = {step:"step",status:"status"}[bulkTab];
@@ -738,11 +762,13 @@ G("bulk-mok").addEventListener("click", async () => {
 });
 
 // ===== メール =====
-G("mail-ok").addEventListener("click", () => {
-  if (!selMailTpl) { showToast("テンプレートを選択してください"); return; }
-  const tpl = MAIL_TPLS.find(t=>t.id===selMailTpl);
-  showToast(`「${tpl?tpl.name:""}」を送付しました`);
-  closeMod("mod-mail");
+G("mail-ok").addEventListener("click", async () => {
+  if(!selMailTpl||!selected.size){showToast('候補者とテンプレートを選択してください');return;}
+  if(!confirm(`${selected.size}名にメールを送信しますか？`))return;
+  const button=G('mail-ok');button.disabled=true;let sent=0;
+  try{for(const id of [...selected]){await atsApi.sendMail(id,selMailTpl);sent++;selected.delete(id);renderTable();}showToast(`${sent}件の送信を受け付けました`);closeMod('mod-mail');}
+  catch(e){showToast(`${sent}件受付済み。${e.message}`);}
+  finally{button.disabled=false;}
 });
 
 // ===== CSV =====
@@ -752,12 +778,13 @@ G("csv-ok").addEventListener("click", () => {
   const fmt  = CSV_FORMATS.find(f=>f.id===selCsvFmt);
   const getJob = d => { const j=JOBS_LIST.find(j=>j.id===d.job_id); return j?j.title:""; };
   const maps = {
-    basic:  d => `${d.id},${d.name},${d.gender||""},${d.age||""},${getJob(d)},${d.step||""},${d.status||""},${(d.applied_at||"").slice(0,10)}`,
-    full:   d => `${d.id},${d.name},${d.gender||""},${d.age||""},${getJob(d)},${d.step||""},${d.status||""},${(d.applied_at||"").slice(0,10)},${d.stars||0}`,
-    hr:     d => `${d.id},${d.name},${d.gender||""},${d.age||""},${d.step||""},${d.status||""}`,
-    report: d => `${getJob(d)},${d.id},${d.name},${d.step||""},${d.status||""},${(d.applied_at||"").slice(0,10)},${d.stars||0}`
+    basic:d=>[d.id,d.name,d.gender,d.age,getJob(d),d.step,d.status,(d.applied_at||'').slice(0,10)],
+    full:d=>[d.id,d.name,d.gender,d.age,getJob(d),d.step,d.status,(d.applied_at||'').slice(0,10),d.stars||0],
+    hr:d=>[d.id,d.name,d.gender,d.age,d.step,d.status],
+    report:d=>[getJob(d),d.id,d.name,d.step,d.status,(d.applied_at||'').slice(0,10),d.stars||0]
   };
-  const csv = [fmt.cols,...rows.map(maps[selCsvFmt])].join("\n");
+  const cell=value=>{let text=String(value??'');if(/^[\s]*[=+@-]/.test(text))text="'"+text;return '"'+text.replaceAll('"','""')+'"';};
+  const csv=[fmt.cols,...rows.map(d=>maps[selCsvFmt](d).map(cell).join(','))].join('\r\n');
   const a = document.createElement("a");
   a.href = "data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);
   a.download = `applicants_${selCsvFmt}.csv`; a.click();
@@ -767,29 +794,29 @@ G("csv-ok").addEventListener("click", () => {
 // ===== モーダル描画 =====
 function openBulkModal()  { selBulkVal=null; selTagsOp.clear(); bulkTab="step"; renderBulkModal(); openMod("mod-bulk"); }
 function renderBulkModal() {
-  G("bulk-mtabs").innerHTML = ["step","status","tag-add","tag-remove"].map((t,i) =>
+  G("bulk-mtabs").innerHTML = DOMPurify.sanitize(["step","status","tag-add","tag-remove"].map((t,i) =>
     `<button class="mtab${bulkTab===t?" active":""}" data-bt="${t}">${["ステップ","ステータス","タグ付与","タグ削除"][i]}</button>`
-  ).join("");
+  ).join(""));
   G("bulk-mtabs").querySelectorAll(".mtab").forEach(b =>
     b.addEventListener("click", () => { bulkTab=b.dataset.bt; selBulkVal=null; selTagsOp.clear(); renderBulkModal(); })
   );
   if (bulkTab==="tag-add"||bulkTab==="tag-remove") {
     const isAdd = bulkTab==="tag-add";
-    G("bulk-mbody").innerHTML = `<div style="font-size:11px;color:var(--text3);margin-bottom:8px">${isAdd?"付与するタグを選択":"削除するタグを選択"}</div>
-      <div class="taggrid">${ALL_TAGS.map(t=>`<div class="tagopt${selTagsOp.has(t)?(isAdd?" tadd":" tremove"):""}" data-tag="${t}">${t}</div>`).join("")}</div>`;
+    G("bulk-mbody").innerHTML = DOMPurify.sanitize(`<div style="font-size:11px;color:var(--text3);margin-bottom:8px">${isAdd?"付与するタグを選択":"削除するタグを選択"}</div>
+      <div class="taggrid">${ALL_TAGS.map(t=>`<div class="tagopt${selTagsOp.has(t)?(isAdd?" tadd":" tremove"):""}" data-tag="${t}">${t}</div>`).join("")}</div>`);
     G("bulk-mbody").querySelectorAll(".tagopt").forEach(el =>
       el.addEventListener("click", () => { selTagsOp.has(el.dataset.tag)?selTagsOp.delete(el.dataset.tag):selTagsOp.add(el.dataset.tag); renderBulkModal(); })
     );
   } else {
     const items = bulkTab==="step" ? STEPS : STATUSES;
-    G("bulk-mbody").innerHTML = `<input class="msearch" id="bsearch" placeholder="検索..."/><div class="olist" id="blist"></div>`;
+    G("bulk-mbody").innerHTML = DOMPurify.sanitize(`<input class="msearch" id="bsearch" placeholder="検索..."/><div class="olist" id="blist"></div>`);
     const fill = () => {
       const q = G("bsearch").value.toLowerCase();
-      G("blist").innerHTML = items.filter(v=>v.toLowerCase().includes(q)).map(v => {
+      G("blist").innerHTML = DOMPurify.sanitize(items.filter(v=>v.toLowerCase().includes(q)).map(v => {
         const cls = bulkTab==="step"?(STEP_CLS[v]||""):(ST_CLS[v]||"");
         const bt  = bulkTab==="step"?"stepb":"badge";
         return `<div class="oitem${selBulkVal===v?" sel":""}" data-bv="${v}"><input type="radio" ${selBulkVal===v?"checked":""} readonly/><span class="${bt} ${cls}">${v}</span></div>`;
-      }).join("");
+      }).join(""));
       G("blist").querySelectorAll(".oitem").forEach(el => el.addEventListener("click", () => { selBulkVal=el.dataset.bv; fill(); }));
     };
     fill(); G("bsearch").addEventListener("input", fill);
@@ -798,17 +825,17 @@ function renderBulkModal() {
 function openMailModal()   { selMailTpl=null; G("mail-search").value=""; renderMailModal(); openMod("mod-mail"); }
 function renderMailModal() {
   const q = G("mail-search").value.toLowerCase();
-  G("mail-list").innerHTML = MAIL_TPLS.filter(t=>t.name.includes(q)||(t.subject||"").includes(q)).map(t =>
+  G("mail-list").innerHTML = DOMPurify.sanitize(MAIL_TPLS.filter(t=>t.name.includes(q)||(t.subject||"").includes(q)).map(t =>
     `<div class="titem${selMailTpl===t.id?" sel":""}" data-tid="${t.id}"><div class="tn">${t.name}</div><div class="td2">${t.subject||""}</div></div>`
-  ).join("") || `<div style="font-size:13px;color:var(--text3);padding:8px">テンプレートがありません</div>`;
+  ).join("") || `<div style="font-size:13px;color:var(--text3);padding:8px">テンプレートがありません</div>`);
   G("mail-list").querySelectorAll(".titem").forEach(el => el.addEventListener("click", () => { selMailTpl=el.dataset.tid; renderMailModal(); }));
 }
 function openCsvModal()    { selCsvFmt=null; G("csv-search").value=""; renderCsvModal(); openMod("mod-csv"); }
 function renderCsvModal() {
   const q = G("csv-search").value.toLowerCase();
-  G("csv-list").innerHTML = CSV_FORMATS.filter(f=>f.name.toLowerCase().includes(q)).map(f =>
+  G("csv-list").innerHTML = DOMPurify.sanitize(CSV_FORMATS.filter(f=>f.name.toLowerCase().includes(q)).map(f =>
     `<div class="fitem${selCsvFmt===f.id?" sel":""}" data-fid="${f.id}"><div class="fn">${f.name}</div><div class="fd">${f.cols}</div></div>`
-  ).join("");
+  ).join(""));
   G("csv-list").querySelectorAll(".fitem").forEach(el => el.addEventListener("click", () => { selCsvFmt=el.dataset.fid; renderCsvModal(); }));
 }
 
@@ -817,3 +844,4 @@ init();
 </script>
 </body>
 </html>
+

@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-p7RkOEcsROHi0kz34uXiiwEmK9nIr6FTroTO59YNU+8='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ATS Portal - ログイン</title>
 <style>
@@ -117,11 +119,6 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;bac
 <!-- lib/api.js を先に読み込む -->
 <script src="lib/api.js"></script>
 <script>
-// すでにログイン済みなら一覧へ飛ばす
-if (getToken()) {
-  window.location.href = "list.html";
-}
-
 document.getElementById("l-btn").addEventListener("click", doLogin);
 document.getElementById("l-pass").addEventListener("keydown", function(e) {
   if (e.key === "Enter") doLogin();
@@ -132,6 +129,7 @@ async function doLogin() {
   const password = document.getElementById("l-pass").value;
   const btn      = document.getElementById("l-btn");
   const errEl    = document.getElementById("lerr");
+  if (btn.disabled) return;
 
   // 入力チェック
   if (!email || !password) {
@@ -169,3 +167,4 @@ async function doLogin() {
 </script>
 </body>
 </html>
+

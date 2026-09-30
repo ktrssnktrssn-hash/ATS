@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!server/
+!server/**
+!index.html
+!list.html
+!detail.html
+!lib/
+!lib/**

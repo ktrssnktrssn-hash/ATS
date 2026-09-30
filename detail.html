@@ -2,6 +2,8 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-Zc2qEKOyuMwXBqYEfRhcfcsAQdKT27+H1NDMeQtfvlU='; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ATS Portal - 候補者詳細</title>
 <style>
@@ -218,6 +220,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .itext{font-size:12px;color:var(--text2);line-height:1.6;}
 .empty{text-align:center;padding:2rem;color:var(--text3);font-size:13px;}
 .loading{text-align:center;padding:2rem;color:var(--text3);font-size:13px;}
+
+.ats-interviewer #new-btn,.ats-interviewer #bbulk-btn,.ats-interviewer #bmail-btn,
+.ats-interviewer #d-mail-btn,.ats-interviewer #d-step-btn,.ats-interviewer #d-save-btn,
+.ats-interviewer #info-edit-btn,.ats-interviewer #memo-save,.ats-interviewer #tag-add-btn,
+.ats-interviewer .tag-x,.ats-interviewer .asrow,.ats-interviewer .asect,
+.ats-interviewer .upload-area,.ats-interviewer .ddel{display:none!important;}
 </style>
 </head>
 <body>
@@ -327,6 +335,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="toast" id="toast"></div>
 
+<script src="lib/vendor/purify.min.js"></script>
 <script src="lib/api.js"></script>
 <script>
 // ===== 定数 =====
@@ -335,7 +344,7 @@ const STEP_CLS = {"書類選考":"step-doc","筆記試験":"step-written","1次�
 const STATUSES = ["未対応","通過","不合格","保留","辞退"];
 const ST_CLS   = {"通過":"st-pass","不合格":"st-fail","保留":"st-hold","未対応":"st-new","辞退":"st-wd"};
 const STEP_ORD = {"書類選考":1,"筆記試験":2,"1次面接":3,"2次面接":4,"最終面接":5,"内定":6};
-const AVAIL_IV = ["鈴木 一郎（EMgr）","佐藤 花子（人事）","高橋 健（CTO）","中島 彩（PM）"];
+let AVAIL_IV = [];
 const ITL_TYPE = {
   notify:  {label:"連絡",  cls:"itn"},
   discuss: {label:"相談",  cls:"ita"},
@@ -343,7 +352,7 @@ const ITL_TYPE = {
 };
 
 // ===== 認証チェック =====
-requireAuth();
+
 const _user = getCurrentUser();
 if (_user) document.getElementById("nav-user").textContent = _user.name || _user.email || "";
 document.getElementById("logout-btn").addEventListener("click", async () => {
@@ -355,7 +364,7 @@ document.getElementById("logout-btn").addEventListener("click", async () => {
 const params = new URLSearchParams(location.search);
 const curId  = params.get("id");
 if (!curId) {
-  document.body.innerHTML = "<p style='padding:2rem;font-size:14px'>候補者IDが指定されていません。<a href='list.html'>一覧に戻る</a></p>";
+  document.body.innerHTML = DOMPurify.sanitize("<p style='padding:2rem;font-size:14px'>候補者IDが指定されていません。<a href='list.html'>一覧に戻る</a></p>");
   throw new Error("no id");
 }
 
@@ -388,6 +397,10 @@ let evalData  = {};  // {step: {adminCommentId, adminComment, ivs:[{id,name,ini,
 // ===== 初期化 =====
 async function init() {
   try {
+    const activeUser=await atsApi.validateSession();
+    document.getElementById('nav-user').textContent=activeUser.name||activeUser.email||'';
+    document.body.classList.toggle('ats-interviewer',activeUser.role==='interviewer');
+    AVAIL_IV = await atsApi.getMembers();
     const [applicant, templates, history, timeline, files, mailHistory, appTags, allTags, evaluations, jobs] = await Promise.all([
       atsApi.getApplicant(curId),
       atsApi.getMailTemplates(),
@@ -402,7 +415,7 @@ async function init() {
     ]);
 
     if (!applicant) {
-      document.body.innerHTML = "<p style='padding:2rem;font-size:14px'>候補者が見つかりません。<a href='list.html'>一覧に戻る</a></p>";
+      document.body.innerHTML = DOMPurify.sanitize("<p style='padding:2rem;font-size:14px'>候補者が見つかりません。<a href='list.html'>一覧に戻る</a></p>");
       return;
     }
 
@@ -461,7 +474,7 @@ async function init() {
 
   } catch (e) {
     console.error(e);
-    showToast("データの読み込みに失敗しました");
+    showToast(e.message || "データの読み込みに失敗しました");
   }
 }
 
@@ -497,7 +510,7 @@ G("d-av").addEventListener("click",   () => G("ph-file").click());
 G("ph-file").addEventListener("change", function() {
   if (!this.files || !this.files[0]) return;
   const r = new FileReader();
-  r.onload = e => { G("d-av").innerHTML = `<img src="${e.target.result}"/>`; };
+  r.onload = e => { G("d-av").innerHTML = DOMPurify.sanitize(`<img src="${e.target.result}"/>`); };
   r.readAsDataURL(this.files[0]);
 });
 
@@ -563,13 +576,13 @@ function renderTags() {
 
   // 付与済みタグを表示
   const assignedIds = APPLICANT_TAGS.map(t => t.tag_id);
-  area.innerHTML = APPLICANT_TAGS.map(t => {
+  area.innerHTML = DOMPurify.sanitize(APPLICANT_TAGS.map(t => {
     const name = t.tags?.name || "";
     const style = getTagStyle(name);
     return `<span class="tag-badge" style="${style}" data-tid="${t.tag_id}">
       ${name}<span class="tag-x" data-tid="${t.tag_id}">✕</span>
     </span>`;
-  }).join("") || `<span style="font-size:11px;color:var(--text3)">なし</span>`;
+  }).join("") || `<span style="font-size:11px;color:var(--text3)">なし</span>`);
 
   // タグ削除イベント
   area.querySelectorAll(".tag-x").forEach(el => {
@@ -586,11 +599,11 @@ function renderTags() {
   // タグピッカー（未付与のタグのみ表示）
   const unassigned = ALL_TAGS_DB.filter(t => !assignedIds.includes(t.id));
   if (unassigned.length === 0) {
-    picker.innerHTML = `<span style="font-size:12px;color:var(--text3)">追加できるタグがありません</span>`;
+    picker.innerHTML = DOMPurify.sanitize(`<span style="font-size:12px;color:var(--text3)">追加できるタグがありません</span>`);
   } else {
-    picker.innerHTML = unassigned.map(t =>
+    picker.innerHTML = DOMPurify.sanitize(unassigned.map(t =>
       `<span class="tpopt" data-tid="${t.id}" data-name="${t.name}">${t.name}</span>`
-    ).join("");
+    ).join(""));
     picker.querySelectorAll(".tpopt").forEach(el => {
       el.addEventListener("click", async () => {
         await atsApi.addTag(curId, el.dataset.tid);
@@ -628,10 +641,10 @@ function renderBasicInfo() {
     {k:"現年収",  f:"cur_sal",  v: d.current_salary  ? d.current_salary + "万円" : "―",  raw: d.current_salary || ""},
     {k:"希望年収",f:"des_sal",  v: d.desired_salary  ? d.desired_salary + "万円" : "―",  raw: d.desired_salary || ""},
   ];
-  G("basic-info").innerHTML = rows.map(r => editingInfo
+  G("basic-info").innerHTML = DOMPurify.sanitize(rows.map(r => editingInfo
     ? `<div class="irow"><span class="ikey">${r.k}</span><input class="iinput" id="iinput-${r.f}" value="${r.raw}"/></div>`
     : `<div class="irow"><span class="ikey">${r.k}</span><span class="ival">${r.v}</span></div>`
-  ).join("");
+  ).join(""));
 }
 
 function renderDetailInfo() {
@@ -645,17 +658,17 @@ function renderDetailInfo() {
     {k:"経験年数",  f:"exp",      v: d.experience_years ? d.experience_years + "年" : "―", raw: d.experience_years || ""},
     {k:"応募日",    f:"applied",  v: d.applied_at    ? d.applied_at.slice(0,10) : "―", raw: ""},
   ];
-  G("detail-info").innerHTML = rows.map(r => (editingInfo && r.f !== "applied")
+  G("detail-info").innerHTML = DOMPurify.sanitize(rows.map(r => (editingInfo && r.f !== "applied")
     ? `<div class="irow"><span class="ikey">${r.k}</span><input class="iinput" id="iinput-${r.f}" value="${r.raw}"/></div>`
     : `<div class="irow"><span class="ikey">${r.k}</span><span class="ival">${r.v}</span></div>`
-  ).join("");
+  ).join(""));
 }
 
 // ===== ステップフロー描画 =====
 function renderStepFlow() {
   if (!d) return;
   const idx = STEP_ORD[d.step] || 0;
-  G("d-sflow").innerHTML = STEPS.map((s, i) => {
+  G("d-sflow").innerHTML = DOMPurify.sanitize(STEPS.map((s, i) => {
     const ord = i + 1, isCur = d.step === s, isDone = idx > ord;
     const cls  = isCur ? "snode cur" : isDone ? "snode done" : "snode fut";
     const dot  = isCur ? "sd-cur"    : isDone ? "sd-done"    : "sd-fut";
@@ -663,16 +676,16 @@ function renderStepFlow() {
       ? `<span class="badge ${ST_CLS[d.status]||""}" style="font-size:10px">${d.status}</span>`
       : "";
     return `<div class="${cls}"><div class="sdot ${dot}"></div><div class="sname">${s}</div>${badge}</div>`;
-  }).join("");
+  }).join(""));
 }
 
 // ===== 選考履歴 =====
 function renderHistory(history) {
   if (!history.length) {
-    G("dpane-history").innerHTML = `<div class="empty">履歴がありません</div>`;
+    G("dpane-history").innerHTML = DOMPurify.sanitize(`<div class="empty">履歴がありません</div>`);
     return;
   }
-  G("dpane-history").innerHTML = `<div class="tl">${
+  G("dpane-history").innerHTML = DOMPurify.sanitize(`<div class="tl">${
     history.map((h, i) => {
       const dot = h.step ? (
         h.status === "通過" ? "tg" :
@@ -691,12 +704,12 @@ function renderHistory(history) {
         </div>
       </div>`;
     }).join("")
-  }</div>`;
+  }</div>`);
 }
 
 // ===== 評価（メモリ管理） =====
 function renderEval() {
-  G("dpane-eval").innerHTML = STEPS.map((s, si) => {
+  G("dpane-eval").innerHTML = DOMPurify.sanitize(STEPS.map((s, si) => {
     if (!evalData[s]) evalData[s] = {ivs: [], adminComment: ""};
     const e = evalData[s];
     const isOpen = openAccs.has(s);
@@ -715,7 +728,7 @@ function renderEval() {
         ${renderAccBody(s, si)}
       </div>
     </div>`;
-  }).join("");
+  }).join(""));
   STEPS.forEach((s, si) => {
     G("acchd-" + si).addEventListener("click", () => {
       const bd = G("accbd-" + si), chev = G("chev-" + si);
@@ -735,7 +748,7 @@ function renderAccBody(s, si) {
     <span style="font-size:12px;color:var(--text2);white-space:nowrap">面接官を追加</span>
     <select class="asel" id="asel-${si}">
       <option value="">選択してください</option>
-      ${AVAIL_IV.map(n => `<option value="${n}">${n}</option>`).join("")}
+      ${AVAIL_IV.map(n => `<option value="${n.id}">${n.name}（${n.role}）</option>`).join("")}
     </select>
     <button class="btn sm pri" id="assign-${si}">追加</button>
   </div>
@@ -870,13 +883,15 @@ function wireAccEvents(s, si) {
 async function assignIV(s, si) {
   const sel = G("asel-" + si), full = sel.value;
   if (!full) { showToast("面接官を選択してください"); return; }
-  const name = full.split("（")[0];
-  const role = (full.match(/（(.+?)）/) || [])[1] || "";
+  const member=AVAIL_IV.find(m=>m.id===full);
+  if(!member)return;
+  const name=member.name, role=member.role;
   if (!evalData[s]) evalData[s] = {ivs:[], adminComment:""};
   if (evalData[s].ivs.find(iv => iv.name === name)) { showToast("すでにアサイン済みです"); return; }
 
   // 面接官名・役職をcriteriaに含めて一度のinsertで保存
   const initCrit = {技術力:0, コミュ力:0, カルチャー:0, _name: name, _role: role};
+  await atsApi.assignInterviewer(curId,member.id,s);
   const result = await atsApi.saveEvaluation({
     applicant_id:     curId,
     step:             s,
@@ -884,7 +899,7 @@ async function assignIV(s, si) {
     criteria:         initCrit,
     comment:          "",
     is_admin_comment: false,
-    evaluator_id:     null
+    evaluator_id:     member.id
   });
 
   const newId = Array.isArray(result) && result[0] ? result[0].id : null;
@@ -906,7 +921,7 @@ async function assignIV(s, si) {
 
 function refreshAcc(s, si) {
   const bd = G("accbd-" + si); if (!bd) return;
-  bd.innerHTML = renderAccBody(s, si);
+  bd.innerHTML = DOMPurify.sanitize(renderAccBody(s, si));
   wireAccEvents(s, si);
   const e = evalData[s] || {ivs:[]};
   const score = e.ivs.length ? (e.ivs.reduce((a,iv)=>a+iv.overall,0)/e.ivs.length).toFixed(1) : null;
@@ -950,7 +965,7 @@ function renderDocs(files) {
         </div>`).join("")}</div>`
     : `<div class="empty" style="padding:1rem 0">書類がありません</div>`;
 
-  pane.innerHTML = uploadHtml + listHtml;
+  pane.innerHTML = DOMPurify.sanitize(uploadHtml + listHtml);
 
   // クリックでファイル選択
   const area = G("upload-area");
@@ -971,7 +986,7 @@ function renderDocs(files) {
     btn.addEventListener("click", async () => {
       btn.textContent = "...";
       const url = await atsApi.getFileUrl(btn.dataset.path);
-      if (url) { window.open(url, "_blank"); }
+      if (url) { window.open(url, "_blank", "noopener,noreferrer"); }
       else showToast("ダウンロードURLの取得に失敗しました");
       btn.textContent = "DL";
     });
@@ -1007,30 +1022,19 @@ async function handleUpload(fileList) {
   }
 
   progress.classList.add("show");
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    status.textContent = `アップロード中 ${i+1}/${files.length}: ${file.name}`;
-    fill.style.width = `${Math.round((i / files.length) * 100)}%`;
-
-    const result = await atsApi.uploadFile(curId, file);
-    if (result && !result.error) {
-      docFiles.push(result);
-    } else {
-      showToast(`${file.name} のアップロードに失敗しました`);
+  let completed=0;
+  try {
+    for(const file of files){
+      status.textContent=`アップロード中 ${completed+1}/${files.length}: ${file.name}`;
+      const result=await atsApi.uploadFile(curId,file);
+      if(!result?.id)throw new Error('書類の保存に失敗しました');
+      docFiles.push(result);completed++;
+      fill.style.width=`${Math.round(completed/files.length*100)}%`;
     }
-  }
+    showToast(`${completed}件をアップロードしました`);
+  } catch(e){showToast(`${completed}件保存済み。${e.message}`);}
+  finally{if(input)input.value='';renderDocs(docFiles);}
 
-  fill.style.width = "100%";
-  status.textContent = "完了！";
-  setTimeout(() => {
-    progress.classList.remove("show");
-    fill.style.width = "0%";
-  }, 1500);
-
-  if (input) input.value = "";
-  renderDocs(docFiles);
-  showToast(`${files.length}件をアップロードしました`);
 }
 
 function getFileIcon(type) {
@@ -1048,8 +1052,8 @@ function formatSize(bytes) {
 
 // ===== メール履歴 =====
 function renderMailsPane(mails) {
-  if (!mails.length) { G("dpane-mail").innerHTML = `<div class="empty">メール履歴がありません</div>`; return; }
-  G("dpane-mail").innerHTML = mails.map((m, i) => {
+  if (!mails.length) { G("dpane-mail").innerHTML = DOMPurify.sanitize(`<div class="empty">メール履歴がありません</div>`); return; }
+  G("dpane-mail").innerHTML = DOMPurify.sanitize(mails.map((m, i) => {
     const sentAt  = toJST(m.sent_at);
     const sentTo  = m.sent_to  || "―";
     const subject = m.subject  || m.mail_templates?.name || "（件名なし）";
@@ -1062,7 +1066,7 @@ function renderMailsPane(mails) {
             <path d="M3 13L13 3M13 3H7M13 3v6" stroke="#3C3489" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
-        <div class="msubj">${subject}</div>
+        <div class="msubj">${subject}（${({pending:"送信処理中",sent:"送信受付済み",failed:"送信失敗",unknown:"結果確認中"})[m.status]||m.status||"不明"}）</div>
         <div class="mdt">${sentAt}</div>
         <div class="mchev" id="mchev-${i}">▼</div>
       </div>
@@ -1076,7 +1080,7 @@ function renderMailsPane(mails) {
         ${m.body ? `<div class="mtext">${m.body}</div>` : ""}
       </div>
     </div>`;
-  }).join("");
+  }).join(""));
   G("dpane-mail").querySelectorAll(".mhd[data-mi]").forEach(el => {
     el.addEventListener("click", () => {
       const b = G("mbody-" + el.dataset.mi), c = G("mchev-" + el.dataset.mi);
@@ -1089,7 +1093,7 @@ function renderMailsPane(mails) {
 
 // ===== 社内連絡 =====
 function renderITL(items) {
-  G("dpane-itl").innerHTML = `
+  G("dpane-itl").innerHTML = DOMPurify.sanitize(`
     <div class="itl-compose">
       <textarea class="itl-ta" id="itl-ta" placeholder="社内連絡・申し送り・相談事項を入力..."></textarea>
       <div class="itl-foot">
@@ -1101,7 +1105,7 @@ function renderITL(items) {
         <button class="itl-post" id="itl-post">投稿</button>
       </div>
     </div>
-    <div id="itl-posts">${renderITLPosts(items)}</div>`;
+    <div id="itl-posts">${renderITLPosts(items)}</div>`);
 
   G("itl-post").addEventListener("click", async () => {
     const ta  = G("itl-ta"), txt = ta.value.trim();
@@ -1109,7 +1113,7 @@ function renderITL(items) {
     await atsApi.postTimeline(curId, G("itl-sel").value, txt);
     ta.value = "";
     const updated = await atsApi.getTimeline(curId);
-    G("itl-posts").innerHTML = renderITLPosts(Array.isArray(updated) ? updated : []);
+    G("itl-posts").innerHTML = DOMPurify.sanitize(renderITLPosts(Array.isArray(updated) ? updated : []));
     showToast("投稿しました");
   });
 }
@@ -1134,18 +1138,18 @@ function openStepModal() {
   renderStepModal(); openMod("mod-step");
 }
 function renderStepModal() {
-  G("sm-steps").innerHTML = STEPS.map(s =>
+  G("sm-steps").innerHTML = DOMPurify.sanitize(STEPS.map(s =>
     `<div class="oitem${selStep2===s?" sel":""}" data-sv="${s}">
       <input type="radio" ${selStep2===s?"checked":""} readonly/>
       <span class="stepb ${STEP_CLS[s]||""}">${s}</span>
     </div>`
-  ).join("");
-  G("sm-statuses").innerHTML = STATUSES.map(s =>
+  ).join(""));
+  G("sm-statuses").innerHTML = DOMPurify.sanitize(STATUSES.map(s =>
     `<div class="oitem${selStatus2===s?" sel":""}" data-sv="${s}">
       <input type="radio" ${selStatus2===s?"checked":""} readonly/>
       <span class="badge ${ST_CLS[s]||""}">${s}</span>
     </div>`
-  ).join("");
+  ).join(""));
   G("sm-steps").querySelectorAll(".oitem").forEach(el =>
     el.addEventListener("click", () => { selStep2 = el.dataset.sv; renderStepModal(); })
   );
@@ -1161,10 +1165,7 @@ G("sm-ok").addEventListener("click", async () => {
   // DBに更新
   await atsApi.updateApplicant(d.id, {step: selStep2, status: selStatus2});
   // 変更があった場合は選考履歴に記録
-  if (prevStep !== selStep2 || prevStatus !== selStatus2) {
-    await atsApi.addStepHistory(d.id, selStep2, selStatus2,
-      `${prevStep}(${prevStatus}) → ${selStep2}(${selStatus2})`);
-  }
+
   d.step = selStep2; d.status = selStatus2;
   renderStepFlow();
   closeMod("mod-step");
@@ -1175,12 +1176,12 @@ G("sm-ok").addEventListener("click", async () => {
 function openMailModal()  { selMailTpl=null; G("mail-search").value=""; renderMailModal(); openMod("mod-mail"); }
 function renderMailModal() {
   const q = G("mail-search").value.toLowerCase();
-  G("mail-list").innerHTML = MAIL_TPLS.filter(t => t.name.includes(q)||(t.subject||"").includes(q)).map(t =>
+  G("mail-list").innerHTML = DOMPurify.sanitize(MAIL_TPLS.filter(t => t.name.includes(q)||(t.subject||"").includes(q)).map(t =>
     `<div class="titem${selMailTpl===t.id?" sel":""}" data-tid="${t.id}">
       <div class="tn">${t.name}</div>
       <div class="td2">${t.subject||""}</div>
     </div>`
-  ).join("") || `<div style="font-size:13px;color:var(--text3);padding:8px">テンプレートがありません</div>`;
+  ).join("") || `<div style="font-size:13px;color:var(--text3);padding:8px">テンプレートがありません</div>`);
   G("mail-list").querySelectorAll(".titem").forEach(el =>
     el.addEventListener("click", () => { selMailTpl=el.dataset.tid; renderMailModal(); })
   );
@@ -1212,13 +1213,14 @@ G("mail-ok").addEventListener("click", async () => {
     const subject = replaceVars(rawSubject);
 
     // Edge Function経由でResendでメール送信
-    const result = await atsApi.sendMail(d.email, subject, body);
+    if(!confirm(`「${tpl.name}」を ${d.email} に送信しますか？`))return;
+    const result = await atsApi.sendMail(d.id, tpl.id);
 
     if (result.error) {
       showToast(`送付失敗: ${result.error}`);
     } else {
       // 送付ログをDBに記録（bodyも保存）
-      await atsApi.logMail(d.id, tpl.id, subject, d.email, body);
+      // 送信関数が履歴を保存します。
       showToast(`「${tpl.name}」を ${d.email} に送付しました`);
       closeMod("mod-mail");
       // メール履歴を再取得して更新
@@ -1226,7 +1228,7 @@ G("mail-ok").addEventListener("click", async () => {
       renderMailsPane(Array.isArray(updated) ? updated : []);
     }
   } catch(e) {
-    showToast("通信エラーが発生しました");
+    showToast(e.message || "通信エラーが発生しました");
     console.error(e);
   } finally {
     btn.disabled = false;
@@ -1244,3 +1246,4 @@ init();
 </script>
 </body>
 </html>
+

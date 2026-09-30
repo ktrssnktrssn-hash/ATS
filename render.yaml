@@ -1,0 +1,25 @@
+# Prepared demo configuration; importing this file creates an internet-facing login page.
+services:
+  - type: web
+    name: ats-demo
+    runtime: node
+    region: singapore
+    plan: free
+    numInstances: 1
+    branch: codex/switch-connected-supabase
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm test
+    startCommand: npm start
+    healthCheckPath: /healthz
+    maxShutdownDelaySeconds: 15
+    envVars:
+      - key: NODE_VERSION
+        value: "24.19.0"
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: SUPABASE_URL
+        value: https://edxfhpdyxlenkrxsnirb.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
